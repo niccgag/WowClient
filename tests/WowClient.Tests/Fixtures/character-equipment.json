@@ -1,0 +1,39 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/profile/wow/character/tarren-mill/fea/equipment?namespace=profile-us&locale=en_US"
+    }
+  },
+  "character": {
+    "name": "Fëa",
+    "id": 123456,
+    "realm": {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    }
+  },
+  "equipped_items": [
+    {
+      "item": {
+        "id": 19019,
+        "name": "Thunderfury, Blessed Blade of the Windseeker",
+        "media": {
+          "href": "https://us.api.blizzard.com/data/wow/media/item/19019?namespace=static-us"
+        }
+      },
+      "slot": {
+        "type": "MAIN_HAND",
+        "name": "Main Hand"
+      },
+      "quantity": 1,
+      "context": 0,
+      "bonus_list": [1234, 5678],
+      "quality": {
+        "type": "LEGENDARY",
+        "name": "Legendary"
+      }
+    }
+  ],
+  "average_item_level": 618
+}

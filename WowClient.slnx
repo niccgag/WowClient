@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/WowClient.WebApi/WowClient.WebApi.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/WowClient/WowClient.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WowClient.Tests/WowClient.Tests.csproj" />
+  </Folder>
+</Solution>

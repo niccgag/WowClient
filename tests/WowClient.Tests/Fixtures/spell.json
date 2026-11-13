@@ -1,0 +1,16 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/data/wow/spell/133?namespace=static-us&locale=en_US"
+    }
+  },
+  "id": 133,
+  "name": "Fireball",
+  "description": "Hurls a fiery ball that causes 40 Fire damage and an additional 6 Fire damage over 6 sec.",
+  "media": {
+    "key": {
+      "href": "https://us.api.blizzard.com/data/wow/media/spell/133?namespace=static-us"
+    },
+    "id": 133
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/data/wow/achievement/6?namespace=static-us&locale=en_US"
+    }
+  },
+  "id": 6,
+  "name": "Level 10",
+  "description": "Reach level 10.",
+  "category": {
+    "key": {
+      "href": "https://us.api.blizzard.com/data/wow/achievement-category/92?namespace=static-us"
+    },
+    "name": "Characters"
+  },
+  "points": 10,
+  "is_account_wide": true,
+  "reward_description": "You have reached level 10.",
+  "media": {
+    "key": {
+      "href": "https://us.api.blizzard.com/data/wow/media/achievement/6?namespace=static-us"
+    },
+    "id": 6
+  }
+}

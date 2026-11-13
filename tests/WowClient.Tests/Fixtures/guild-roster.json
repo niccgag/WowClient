@@ -1,0 +1,46 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/data/wow/guild/tarren-mill/example-guild/roster?namespace=profile-us&locale=en_US"
+    }
+  },
+  "guild": {
+    "key": {
+      "href": "https://us.api.blizzard.com/data/wow/guild/tarren-mill/example-guild?namespace=profile-us"
+    },
+    "id": 42,
+    "name": "Example Guild",
+    "realm": {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    }
+  },
+  "members": [
+    {
+      "character": {
+        "name": "Fëa",
+        "id": 123456,
+        "realm": {
+          "id": 1096,
+          "slug": "tarren-mill",
+          "name": "Tarren Mill"
+        },
+        "level": 80,
+        "playable_class": {
+          "id": 5,
+          "name": "Priest"
+        },
+        "playable_race": {
+          "id": 1,
+          "name": "Human"
+        },
+        "faction": {
+          "type": "ALLIANCE",
+          "name": "Alliance"
+        }
+      },
+      "rank": 0
+    }
+  ]
+}

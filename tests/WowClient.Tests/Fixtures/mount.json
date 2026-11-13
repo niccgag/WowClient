@@ -1,0 +1,29 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/data/wow/mount/6?namespace=static-us&locale=en_US"
+    }
+  },
+  "id": 6,
+  "name": "Brown Horse",
+  "creature_display": {
+    "key": {
+      "href": "https://us.api.blizzard.com/data/wow/media/creature-display/12345?namespace=static-us"
+    },
+    "id": 12345
+  },
+  "faction": {
+    "type": "ALLIANCE",
+    "name": "Alliance"
+  },
+  "source": {
+    "type": "VENDOR",
+    "name": "Vendor"
+  },
+  "media": {
+    "key": {
+      "href": "https://us.api.blizzard.com/data/wow/media/mount/6?namespace=static-us"
+    },
+    "id": 6
+  }
+}

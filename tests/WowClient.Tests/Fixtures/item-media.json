@@ -1,0 +1,14 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/data/wow/media/item/19019?namespace=static-us&locale=en_US"
+    }
+  },
+  "id": 19019,
+  "assets": [
+    {
+      "key": "icon",
+      "value": "https://render.worldofwarcraft.com/us/icons/56/inv_sword_39.jpg"
+    }
+  ]
+}

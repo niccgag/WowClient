@@ -1,0 +1,25 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/data/wow/realm/index?namespace=dynamic-us&locale=en_US"
+    }
+  },
+  "realms": [
+    {
+      "key": {
+        "href": "https://us.api.blizzard.com/data/wow/realm/tarren-mill?namespace=dynamic-us"
+      },
+      "name": "Tarren Mill",
+      "id": 1096,
+      "slug": "tarren-mill"
+    },
+    {
+      "key": {
+        "href": "https://us.api.blizzard.com/data/wow/realm/silvermoon?namespace=dynamic-us"
+      },
+      "name": "Silvermoon",
+      "id": 501,
+      "slug": "silvermoon"
+    }
+  ]
+}

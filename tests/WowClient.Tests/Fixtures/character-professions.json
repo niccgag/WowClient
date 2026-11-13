@@ -1,0 +1,51 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/profile/wow/character/tarren-mill/fea/professions?namespace=profile-us&locale=en_US"
+    }
+  },
+  "character": {
+    "name": "Fëa",
+    "id": 123456,
+    "realm": {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    }
+  },
+  "primaries": [
+    {
+      "profession": {
+        "id": 171,
+        "name": "Alchemy"
+      },
+      "tiers": [
+        {
+          "tier": {
+            "id": 1,
+            "name": "Classic"
+          },
+          "skill_points": 300,
+          "max_skill_points": 300,
+          "known_recipes": [
+            {
+              "id": 1234,
+              "name": "Flask of the Titans"
+            }
+          ]
+        }
+      ],
+      "skill_points": 300
+    }
+  ],
+  "secondaries": [
+    {
+      "profession": {
+        "id": 185,
+        "name": "Cooking"
+      },
+      "tiers": [],
+      "skill_points": 0
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/profile/wow/character/tarren-mill/fea?namespace=profile-us&locale=en_US"
+    }
+  },
+  "id": 123456,
+  "name": "Fëa",
+  "gender": {
+    "type": "FEMALE",
+    "name": "Female"
+  },
+  "faction": {
+    "type": "ALLIANCE",
+    "name": "Alliance"
+  },
+  "race": {
+    "id": 1,
+    "name": "Human"
+  },
+  "character_class": {
+    "id": 5,
+    "name": "Priest"
+  },
+  "active_spec": {
+    "id": 258,
+    "name": "Shadow"
+  },
+  "realm": {
+    "id": 1096,
+    "slug": "tarren-mill",
+    "name": "Tarren Mill"
+  },
+  "guild": {
+    "id": 42,
+    "name": "Example Guild",
+    "realm": {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    },
+    "faction": {
+      "type": "ALLIANCE",
+      "name": "Alliance"
+    }
+  },
+  "level": 80,
+  "achievement_points": 12345,
+  "achievements": {
+    "total_quantity": 1000,
+    "total_points": 12345
+  },
+  "last_login_timestamp": 1760000000000,
+  "average_item_level": 620,
+  "equipped_item_level": 618,
+  "media": {
+    "href": "https://us.api.blizzard.com/profile/wow/character/tarren-mill/fea/character-media?namespace=profile-us"
+  }
+}

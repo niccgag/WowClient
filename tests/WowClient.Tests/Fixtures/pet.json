@@ -1,0 +1,44 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/data/wow/pet/39?namespace=static-us&locale=en_US"
+    }
+  },
+  "id": 39,
+  "name": "Mechanical Squirrel",
+  "battle_pet_type": {
+    "type": "MECHANICAL",
+    "name": "Mechanical"
+  },
+  "creature": {
+    "key": {
+      "href": "https://us.api.blizzard.com/data/wow/creature/2671?namespace=static-us"
+    },
+    "id": 2671
+  },
+  "is_capturable": true,
+  "is_tradable": true,
+  "is_battlepet": true,
+  "is_alliance_only": false,
+  "is_horde_only": false,
+  "abilities": [
+    {
+      "id": 499,
+      "name": "Bite",
+      "slot": 1,
+      "required_level": 1,
+      "media": {
+        "key": {
+          "href": "https://us.api.blizzard.com/data/wow/media/pet-ability/499?namespace=static-us"
+        },
+        "id": 499
+      }
+    }
+  ],
+  "media": {
+    "key": {
+      "href": "https://us.api.blizzard.com/data/wow/media/pet/39?namespace=static-us"
+    },
+    "id": 39
+  }
+}

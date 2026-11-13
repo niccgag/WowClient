@@ -1,0 +1,21 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://us.api.blizzard.com/data/wow/guild/tarren-mill/example-guild?namespace=profile-us&locale=en_US"
+    }
+  },
+  "id": 42,
+  "name": "Example Guild",
+  "faction": {
+    "type": "ALLIANCE",
+    "name": "Alliance"
+  },
+  "achievement_points": 5000,
+  "member_count": 25,
+  "realm": {
+    "id": 1096,
+    "slug": "tarren-mill",
+    "name": "Tarren Mill"
+  },
+  "created_timestamp": 1500000000000
+}
