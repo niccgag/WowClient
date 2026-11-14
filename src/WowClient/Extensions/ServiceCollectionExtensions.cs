@@ -25,11 +25,9 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
-        services.AddOptions<WowClientOptions>()
-            .Configure(configure)
-            .Validate(
-                options => options.Timeout > TimeSpan.Zero,
-                "WowClientOptions.Timeout must be positive.");
+        services.AddOptions<WowClientOptions>().Configure(configure);
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<WowClientOptions>, WowClientOptionsValidator>());
 
         services.AddHttpClient(WowClientDefaults.ApiHttpClientName, ConfigureHttpClient);
         services.AddHttpClient(WowClientDefaults.OAuthHttpClientName, ConfigureHttpClient);
@@ -44,7 +42,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(provider => new WowApiRequestExecutor(
             provider.GetRequiredService<IHttpClientFactory>(),
             provider.GetRequiredService<IAccessTokenProvider>(),
-            provider.GetRequiredService<IOptions<WowClientOptions>>().Value));
+            provider.GetRequiredService<IOptions<WowClientOptions>>().Value,
+            provider.GetRequiredService<TimeProvider>()));
 
         services.TryAddSingleton<IGameDataClient>(provider => new GameDataClient(
             provider.GetRequiredService<WowApiRequestExecutor>(),

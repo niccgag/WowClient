@@ -12,6 +12,13 @@ internal static class TestClient
         Action<WowClientOptions>? configure = null,
         TimeProvider? timeProvider = null)
     {
+        var options = Options(configure);
+        var httpClient = new HttpClient(handler);
+        return global::WowClient.WowClient.Create(options, httpClient, httpClient, timeProvider);
+    }
+
+    public static WowClientOptions Options(Action<WowClientOptions>? configure = null)
+    {
         var options = new WowClientOptions
         {
             ClientId = "test-client",
@@ -23,9 +30,7 @@ internal static class TestClient
         };
 
         configure?.Invoke(options);
-
-        var httpClient = new HttpClient(handler);
-        return global::WowClient.WowClient.Create(options, httpClient, httpClient, timeProvider);
+        return options;
     }
 
     public static void EnqueueToken(this FakeHttpMessageHandler handler, int expiresIn = 86399) =>

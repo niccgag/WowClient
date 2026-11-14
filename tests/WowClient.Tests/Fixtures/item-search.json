@@ -1,8 +1,9 @@
 {
   "page": 1,
-  "page_size": 1,
-  "max_page": 1,
-  "total_count": 1,
+  "pageSize": 100,
+  "maxPageSize": 100,
+  "pageCount": 1,
+  "resultCountCapped": false,
   "results": [
     {
       "key": {
@@ -10,25 +11,42 @@
       },
       "data": {
         "id": 19019,
-        "name": "Thunderfury, Blessed Blade of the Windseeker",
+        "name": {
+          "en_US": "Thunderfury, Blessed Blade of the Windseeker",
+          "de_DE": "Donnerzorn, Gesegnete Klinge des Windsuchers"
+        },
         "quality": {
           "type": "LEGENDARY",
-          "name": "Legendary"
+          "name": {
+            "en_US": "Legendary",
+            "de_DE": "Legendär"
+          }
         },
         "level": 80,
         "required_level": 60,
         "item_class": {
           "type": "WEAPON",
-          "name": "Weapon"
+          "name": {
+            "en_US": "Weapon",
+            "de_DE": "Waffe"
+          }
         },
         "item_subclass": {
           "type": "SWORD",
-          "name": "Sword"
+          "name": {
+            "en_US": "Sword",
+            "de_DE": "Schwert"
+          }
         },
         "inventory_type": {
           "type": "WEAPON_MAIN_HAND",
-          "name": "Main Hand"
-        }
+          "name": {
+            "en_US": "Main Hand",
+            "de_DE": "Waffenhand"
+          }
+        },
+        "is_equippable": true,
+        "is_stackable": false
       }
     }
   ]

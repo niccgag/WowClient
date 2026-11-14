@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Microsoft.AspNetCore.Diagnostics;
 using WowClient.Exceptions;
@@ -27,7 +28,8 @@ public sealed class WowApiExceptionHandler(ILogger<WowApiExceptionHandler> logge
                         ["blizzardCode"] = apiException.ErrorCode,
                         ["blizzardType"] = apiException.ErrorType,
                         ["requestUri"] = apiException.RequestUri?.ToString(),
-                    });
+                    },
+                    apiException.RetryAfter);
                 return true;
 
             case WowAuthenticationException authenticationException:
@@ -36,6 +38,36 @@ public sealed class WowApiExceptionHandler(ILogger<WowApiExceptionHandler> logge
                     StatusCodes.Status502BadGateway,
                     "Blizzard authentication failed",
                     authenticationException.Message,
+                    null);
+                return true;
+
+            case WowProtocolException protocolException:
+                await WriteProblemAsync(
+                    httpContext,
+                    StatusCodes.Status502BadGateway,
+                    "Blizzard API returned an invalid response",
+                    protocolException.Message,
+                    new Dictionary<string, object?>
+                    {
+                        ["requestUri"] = protocolException.RequestUri?.ToString(),
+                    });
+                return true;
+
+            case OperationCanceledException when !httpContext.RequestAborted.IsCancellationRequested:
+                await WriteProblemAsync(
+                    httpContext,
+                    StatusCodes.Status504GatewayTimeout,
+                    "Blizzard API request timed out",
+                    exception.Message,
+                    null);
+                return true;
+
+            case HttpRequestException:
+                await WriteProblemAsync(
+                    httpContext,
+                    StatusCodes.Status502BadGateway,
+                    "Blizzard API is unavailable",
+                    "The upstream Blizzard API could not be reached.",
                     null);
                 return true;
 
@@ -49,9 +81,16 @@ public sealed class WowApiExceptionHandler(ILogger<WowApiExceptionHandler> logge
         int statusCode,
         string title,
         string detail,
-        IDictionary<string, object?>? extensions)
+        IDictionary<string, object?>? extensions,
+        TimeSpan? retryAfter = null)
     {
         logger.LogWarning("Upstream Blizzard request failed: {Title} - {Detail}", title, detail);
+
+        if (retryAfter is { } delay)
+        {
+            var seconds = Math.Max(0, (int)Math.Ceiling(delay.TotalSeconds));
+            httpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+        }
 
         await Results.Problem(
             statusCode: statusCode,

@@ -37,8 +37,12 @@ public interface IGameDataClient
         WowRequestOptions? requestOptions = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Searches for items by name.</summary>
-    Task<WowSearchResponse<Item>> SearchItemsAsync(
+    /// <summary>
+    /// Searches for items by name. The locale is sent as the <c>name.{locale}</c> field filter, and
+    /// <paramref name="pageSize"/> is capped at 100 by this client (independent of the query-specific
+    /// <c>maxPageSize</c> the API reports).
+    /// </summary>
+    Task<WowSearchResponse<ItemSearchResult>> SearchItemsAsync(
         string query,
         int page = 1,
         int pageSize = 100,
@@ -46,7 +50,7 @@ public interface IGameDataClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Enumerates every item matching a search query, following pages automatically.</summary>
-    IAsyncEnumerable<WowSearchResult<Item>> SearchAllItemsAsync(
+    IAsyncEnumerable<WowSearchResult<ItemSearchResult>> SearchAllItemsAsync(
         string query,
         WowRequestOptions? requestOptions = null,
         CancellationToken cancellationToken = default);

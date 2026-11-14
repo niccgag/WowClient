@@ -1,3 +1,5 @@
+using System.Text.Json;
+using WowClient.Models;
 using WowClient.Tests.Helpers;
 
 namespace WowClient.Tests;
@@ -109,11 +111,74 @@ public sealed class DeserializationTests
         var response = await client.GameData.SearchItemsAsync("thunderfury");
 
         Assert.Equal(1, response.Page);
-        Assert.Equal(1, response.MaxPage);
-        Assert.Equal(1, response.TotalCount);
+        Assert.Equal(100, response.PageSize);
+        Assert.Equal(100, response.MaxPageSize);
+        Assert.Equal(1, response.PageCount);
+        Assert.False(response.ResultCountCapped);
         var result = Assert.Single(response.Results!);
         Assert.Equal(19019, result.Data!.Id);
-        Assert.Equal("Thunderfury, Blessed Blade of the Windseeker", result.Data.Name);
+        Assert.Equal("Thunderfury, Blessed Blade of the Windseeker", result.Data.Name!.EnglishUs);
+        Assert.Equal("Legendär", result.Data.Quality!.Name!["de_DE"]);
+        Assert.Equal("Sword", result.Data.ItemSubclass!.Name!.EnglishUs);
+    }
+
+    [Fact]
+    public async Task SearchAcceptsAStringValuedLocalizedName()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueToken();
+        handler.EnqueueJson(
+            """{"page":1,"pageSize":100,"maxPageSize":100,"pageCount":1,"resultCountCapped":false,"results":[{"data":{"id":1,"name":"Thunderfury"}}]}""");
+        var client = TestClient.Create(handler);
+
+        var response = await client.GameData.SearchItemsAsync("thunderfury");
+
+        var name = Assert.Single(response.Results!).Data!.Name!;
+        Assert.Equal("Thunderfury", name.EnglishUs);
+        Assert.Equal("Thunderfury", name.Get(WowLocale.EnglishUs));
+        Assert.Equal("Thunderfury", name["en_US"]);
+    }
+
+    [Fact]
+    public void LocalizedNameGetHandlesMissingAndNonStringValues()
+    {
+        using var english = JsonDocument.Parse("\"Thunderfury\"");
+        using var number = JsonDocument.Parse("42");
+        using var missing = JsonDocument.Parse("null");
+        var name = new WowLocalizedName
+        {
+            Values = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+            {
+                ["en_US"] = english.RootElement.Clone(),
+                ["de_DE"] = number.RootElement.Clone(),
+                ["fr_FR"] = missing.RootElement.Clone(),
+            },
+        };
+
+        Assert.Equal("Thunderfury", name.Get(WowLocale.EnglishUs));
+        Assert.Equal("Thunderfury", name["en_US"]);
+        Assert.Null(name.Get(WowLocale.GermanDe));
+        Assert.Null(name.Get("es_MX"));
+        Assert.ThrowsAny<ArgumentException>(() => name.Get(" "));
+    }
+
+    [Fact]
+    public async Task SearchCapturesUnknownFieldsInAdditionalProperties()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueToken();
+        handler.EnqueueJson(
+            """{"page":1,"pageSize":100,"maxPageSize":100,"pageCount":1,"resultCountCapped":false,"future_field":{"a":1},"results":[{"data":{"id":1,"name":{"en_US":"One"},"extra_field":"x"}}]}""");
+        var client = TestClient.Create(handler);
+
+        var response = await client.GameData.SearchItemsAsync("one");
+
+        Assert.True(response.AdditionalProperties!.ContainsKey("future_field"));
+        Assert.Equal(
+            JsonValueKind.Object,
+            response.AdditionalProperties["future_field"].ValueKind);
+        var data = Assert.Single(response.Results!).Data!;
+        Assert.Equal("x", data.AdditionalProperties!["extra_field"].GetString());
     }
 
     [Fact]
@@ -189,5 +254,153 @@ public sealed class DeserializationTests
         Assert.Equal("Fëa", member.Character!.Name);
         Assert.Equal("Priest", member.Character.PlayableClass!.Name);
         Assert.Equal(0, member.Rank);
+    }
+
+    [Fact]
+    public async Task CharacterStatusFixtureMapsValidity()
+    {
+        var client = TestClient.ForFixture("character-status.json");
+
+        var status = await client.Profile.GetCharacterStatusAsync("tarren-mill", "Fëa");
+
+        Assert.Equal(123, status.Id);
+        Assert.True(status.IsValid);
+    }
+
+    [Fact]
+    public async Task CharacterMountsFixtureMapsCollectionFlags()
+    {
+        var client = TestClient.ForFixture("character-mounts.json");
+
+        var mounts = await client.Profile.GetCharacterMountsAsync("tarren-mill", "Fëa");
+
+        var mount = Assert.Single(mounts.Mounts!);
+        Assert.Equal(6, mount.Mount!.Id);
+        Assert.True(mount.IsUseable);
+        Assert.False(mount.IsFavorite);
+    }
+
+    [Fact]
+    public async Task CharacterAchievementsFixtureMapsProgress()
+    {
+        var client = TestClient.ForFixture("character-achievements.json");
+
+        var achievements = await client.Profile.GetCharacterAchievementsAsync("tarren-mill", "Fëa");
+
+        Assert.Equal(1, achievements.TotalQuantity);
+        Assert.Equal(10, achievements.TotalPoints);
+        var achievement = Assert.Single(achievements.Achievements!);
+        Assert.Equal("Level 10", achievement.Achievement!.Name);
+        Assert.True(achievement.Criteria!.IsCompleted);
+        Assert.Equal(10, achievement.Criteria.Amount);
+    }
+
+    [Fact]
+    public async Task CharacterPvpSummaryFixtureMapsBracket()
+    {
+        var client = TestClient.ForFixture("character-pvp-summary.json");
+
+        var summary = await client.Profile.GetCharacterPvpSummaryAsync("tarren-mill", "Fëa");
+
+        Assert.Equal(5, summary.HonorLevel);
+        var bracket = Assert.Single(summary.PvpBrackets!);
+        Assert.Equal(1500, bracket.Rating);
+        Assert.Equal("Challenger", bracket.Tier!.Name);
+    }
+
+    [Fact]
+    public async Task MythicKeystoneProfileFixtureMapsRatingAndRuns()
+    {
+        var client = TestClient.ForFixture("mythic-keystone-profile.json");
+
+        var profile = await client.Profile.GetCharacterMythicKeystoneProfileAsync("tarren-mill", "Fëa");
+
+        Assert.Equal(1, profile.CurrentPeriod!.Id);
+        Assert.Equal(2000.5, profile.CurrentMythicRating!.Rating);
+        Assert.Equal(0.5, profile.CurrentMythicRating.Color!.G);
+        var run = Assert.Single(profile.BestRuns!);
+        Assert.Equal(20, run.KeystoneLevel);
+        Assert.True(run.IsCompletedWithinTime);
+        var member = Assert.Single(run.Members!);
+        Assert.Equal("Shadow", member.Specialization!.Name);
+        Assert.Equal(618, member.EquippedItemLevel);
+    }
+
+    [Fact]
+    public async Task GuildActivityFixtureMapsAchievementEntry()
+    {
+        var client = TestClient.ForFixture("guild-activity.json");
+
+        var activity = await client.Profile.GetGuildActivityAsync("tarren-mill", "example-guild");
+
+        var entry = Assert.Single(activity.Activities!);
+        Assert.Equal("Fëa", entry.CharacterAchievement!.Character!.Name);
+        Assert.Equal("Level 10", entry.CharacterAchievement.Achievement!.Name);
+        Assert.Equal(1700000000000, entry.Timestamp);
+    }
+
+    [Fact]
+    public async Task GuildAchievementsFixtureMapsTotals()
+    {
+        var client = TestClient.ForFixture("guild-achievements.json");
+
+        var achievements = await client.Profile.GetGuildAchievementsAsync("tarren-mill", "example-guild");
+
+        Assert.Equal(1, achievements.TotalQuantity);
+        Assert.Equal(10, achievements.TotalPoints);
+        Assert.Single(achievements.Achievements!);
+    }
+
+    [Fact]
+    public async Task ItemClassFixturesMapClassesAndSubclasses()
+    {
+        var index = await TestClient.ForFixture("item-class-index.json")
+            .GameData.GetItemClassIndexAsync();
+        var itemClass = await TestClient.ForFixture("item-class.json")
+            .GameData.GetItemClassAsync(2);
+        var subclass = await TestClient.ForFixture("item-subclass.json")
+            .GameData.GetItemSubclassAsync(2, 7);
+
+        Assert.Equal("Weapon", Assert.Single(index.Classes!).Name);
+        Assert.Equal("Sword", Assert.Single(itemClass.ItemSubclasses!).Name);
+        Assert.Equal("Sword", subclass.DisplayName);
+        Assert.Equal(2, subclass.ClassId);
+    }
+
+    [Fact]
+    public async Task IndexFixturesMapMountsPetsAndCategories()
+    {
+        var mounts = await TestClient.ForFixture("mount-index.json").GameData.GetMountIndexAsync();
+        var pets = await TestClient.ForFixture("pet-index.json").GameData.GetPetIndexAsync();
+        var categories = await TestClient.ForFixture("achievement-category-index.json")
+            .GameData.GetAchievementCategoryIndexAsync();
+
+        Assert.Equal("Brown Horse", Assert.Single(mounts.Mounts!).Name);
+        Assert.Equal("Mechanical Squirrel", Assert.Single(pets.Pets!).Name);
+        Assert.Equal("Characters", Assert.Single(categories.Categories!).Name);
+    }
+
+    [Fact]
+    public async Task MediaFixturesMapSpellAndAchievementAssets()
+    {
+        var spellMedia = await TestClient.ForFixture("spell-media.json")
+            .GameData.GetSpellMediaAsync(133);
+        var achievementMedia = await TestClient.ForFixture("achievement-media.json")
+            .GameData.GetAchievementMediaAsync(6);
+
+        Assert.Equal("icon", Assert.Single(spellMedia.Assets!).Key);
+        Assert.StartsWith("https://", Assert.Single(achievementMedia.Assets!).Value);
+    }
+
+    [Fact]
+    public async Task ConnectedRealmFixtureMapsStatusAndRealms()
+    {
+        var client = TestClient.ForFixture("connected-realm.json");
+
+        var realm = await client.GameData.GetConnectedRealmAsync(1);
+
+        Assert.Equal("Up", realm.Status!.Name);
+        Assert.Equal("High", realm.Population!.Name);
+        Assert.Equal("tarren-mill", Assert.Single(realm.Realms!).Slug);
     }
 }

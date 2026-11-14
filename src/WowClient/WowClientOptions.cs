@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace WowClient;
 
 /// <summary>
@@ -5,6 +7,10 @@ namespace WowClient;
 /// </summary>
 public sealed class WowClientOptions
 {
+    // HttpClient.Timeout, CancellationTokenSource.CancelAfter, and Task.Delay all reject
+    // durations larger than int.MaxValue milliseconds, so fail fast with a clear message instead.
+    private static readonly TimeSpan MaxSupportedDuration = TimeSpan.FromMilliseconds(int.MaxValue);
+
     /// <summary>
     /// Battle.net API client ID from <see href="https://develop.battle.net/access/clients"/>.
     /// </summary>
@@ -38,7 +44,7 @@ public sealed class WowClientOptions
     public Uri? OAuthBaseUrl { get; set; }
 
     /// <summary>
-    /// Timeout applied to HTTP requests created by the library. Defaults to 30 seconds.
+    /// Timeout applied to the entire HTTP operation, including response body reads. Defaults to 30 seconds.
     /// </summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
@@ -63,13 +69,132 @@ public sealed class WowClientOptions
 
     internal Uri ResolveOAuthBaseUri() =>
         OAuthBaseUrl ?? new Uri("https://oauth.battle.net", UriKind.Absolute);
+
+    internal IReadOnlyList<string> Validate()
+    {
+        var errors = new List<string>();
+
+        if (Timeout <= TimeSpan.Zero)
+        {
+            errors.Add("WowClientOptions.Timeout must be positive.");
+        }
+        else if (Timeout > MaxSupportedDuration)
+        {
+            errors.Add(
+                $"WowClientOptions.Timeout must not exceed {MaxSupportedDuration}, " +
+                "the maximum accepted by HttpClient and CancellationTokenSource.");
+        }
+
+        if (!Enum.IsDefined(Region))
+        {
+            errors.Add("WowClientOptions.Region is not a supported region.");
+        }
+
+        if (string.IsNullOrWhiteSpace(Locale))
+        {
+            errors.Add("WowClientOptions.Locale must not be empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(UserAgent))
+        {
+            errors.Add("WowClientOptions.UserAgent must not be empty.");
+        }
+
+        if (MaxRateLimitRetries < 0)
+        {
+            errors.Add("WowClientOptions.MaxRateLimitRetries must be zero or greater.");
+        }
+
+        if (MaxRateLimitDelay < TimeSpan.Zero)
+        {
+            errors.Add("WowClientOptions.MaxRateLimitDelay must be zero or greater.");
+        }
+        else if (MaxRateLimitDelay > MaxSupportedDuration)
+        {
+            errors.Add(
+                $"WowClientOptions.MaxRateLimitDelay must not exceed {MaxSupportedDuration}, " +
+                "the maximum accepted by Task.Delay.");
+        }
+
+        ValidateBaseUri(ApiBaseUrl, nameof(ApiBaseUrl), errors);
+        ValidateBaseUri(OAuthBaseUrl, nameof(OAuthBaseUrl), errors);
+
+        return errors;
+    }
+
+    private static void ValidateBaseUri(Uri? uri, string propertyName, List<string> errors)
+    {
+        if (uri is null)
+        {
+            return;
+        }
+
+        if (!uri.IsAbsoluteUri)
+        {
+            errors.Add($"WowClientOptions.{propertyName} must be an absolute URI.");
+            return;
+        }
+
+        if (uri.Scheme == Uri.UriSchemeHttp)
+        {
+            // Plain http would send the client secret and bearer tokens in plaintext; allow it only
+            // for loopback addresses (local mocks and development servers).
+            if (!uri.IsLoopback)
+            {
+                errors.Add(
+                    $"WowClientOptions.{propertyName} must use https; " +
+                    "plain http is allowed only for loopback addresses.");
+            }
+        }
+        else if (uri.Scheme != Uri.UriSchemeHttps)
+        {
+            errors.Add($"WowClientOptions.{propertyName} must use https.");
+        }
+
+        // The base URI is concatenated with the request path, so a query string or fragment would
+        // swallow the path (https://host/base?x=1 + /data/... => /base), and user info would leak
+        // credentials into request URIs and logs.
+        if (!string.IsNullOrEmpty(uri.Query))
+        {
+            errors.Add($"WowClientOptions.{propertyName} must not include a query string.");
+        }
+
+        if (!string.IsNullOrEmpty(uri.Fragment))
+        {
+            errors.Add($"WowClientOptions.{propertyName} must not include a fragment.");
+        }
+
+        if (!string.IsNullOrEmpty(uri.UserInfo))
+        {
+            errors.Add($"WowClientOptions.{propertyName} must not include user info.");
+        }
+    }
 }
 
 internal static class WowClientDefaults
 {
     public const string ApiHttpClientName = "WowClient.Api";
     public const string OAuthHttpClientName = "WowClient.OAuth";
-    public const string UserAgent = "WowClient/0.1.0";
+
+    public static readonly string UserAgent = $"WowClient/{GetVersion()}";
 
     public static readonly TimeSpan TokenRefreshSkew = TimeSpan.FromSeconds(60);
+
+    private static string GetVersion()
+    {
+        var assembly = typeof(WowClientOptions).Assembly;
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            var metadataIndex = informationalVersion.IndexOf('+');
+            return metadataIndex >= 0 ? informationalVersion[..metadataIndex] : informationalVersion;
+        }
+
+        return assembly.GetName().Version is { } version
+            ? $"{version.Major}.{version.Minor}.{version.Build}"
+            : "0.0.0";
+    }
 }

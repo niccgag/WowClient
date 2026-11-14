@@ -1,0 +1,11 @@
+{
+  "mounts": [
+    {
+      "key": {
+        "href": "https://us.api.blizzard.com/data/wow/mount/6?namespace=static-us"
+      },
+      "name": "Brown Horse",
+      "id": 6
+    }
+  ]
+}

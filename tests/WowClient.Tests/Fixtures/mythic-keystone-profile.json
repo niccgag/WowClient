@@ -1,0 +1,66 @@
+{
+  "character": {
+    "name": "Fëa",
+    "id": 123,
+    "realm": {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    }
+  },
+  "current_period": {
+    "id": 1,
+    "start_timestamp": 1700000000000,
+    "end_timestamp": 1700600000000
+  },
+  "current_mythic_rating": {
+    "rating": 2000.5,
+    "color": {
+      "r": 1,
+      "g": 0.5,
+      "b": 0,
+      "a": 1
+    }
+  },
+  "seasons": [
+    {
+      "id": 1,
+      "start_timestamp": 1700000000000,
+      "end_timestamp": 1700600000000
+    }
+  ],
+  "best_runs": [
+    {
+      "dungeon": {
+        "id": 1,
+        "name": "Example Dungeon"
+      },
+      "keystone_level": 20,
+      "duration": 1800000,
+      "completed_timestamp": 1700000000000,
+      "is_completed_within_time": true,
+      "members": [
+        {
+          "character": {
+            "name": "Fëa",
+            "id": 123,
+            "realm": {
+              "id": 1096,
+              "slug": "tarren-mill",
+              "name": "Tarren Mill"
+            }
+          },
+          "specialization": {
+            "id": 258,
+            "name": "Shadow"
+          },
+          "race": {
+            "id": 1,
+            "name": "Human"
+          },
+          "equipped_item_level": 618
+        }
+      ]
+    }
+  ]
+}

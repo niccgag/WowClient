@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/samples/">
     <Project Path="samples/WowClient.WebApi/WowClient.WebApi.csproj" />
+    <Project Path="samples/WowClient.WebApi.Tests/WowClient.WebApi.Tests.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/WowClient/WowClient.csproj" />

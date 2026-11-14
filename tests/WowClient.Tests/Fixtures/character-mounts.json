@@ -1,0 +1,24 @@
+{
+  "character": {
+    "name": "Fëa",
+    "id": 123,
+    "realm": {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    }
+  },
+  "mounts": [
+    {
+      "mount": {
+        "key": {
+          "href": "https://us.api.blizzard.com/data/wow/mount/6?namespace=static-us"
+        },
+        "name": "Brown Horse",
+        "id": 6
+      },
+      "is_useable": true,
+      "is_favorite": false
+    }
+  ]
+}

@@ -8,7 +8,8 @@ namespace WowClient.Endpoints;
 
 internal sealed class GameDataClient : IGameDataClient
 {
-    private const int MaxSearchPageSize = 1000;
+    // Client-side page size cap, independent of the query-specific maxPageSize the API reports.
+    private const int MaxSearchPageSize = 100;
 
     private readonly WowApiRequestExecutor _executor;
     private readonly WowClientOptions _options;
@@ -62,7 +63,7 @@ internal sealed class GameDataClient : IGameDataClient
         CancellationToken cancellationToken = default) =>
         GetStaticAsync<WowMedia>($"/data/wow/media/item/{itemId}", requestOptions, cancellationToken);
 
-    public Task<WowSearchResponse<Item>> SearchItemsAsync(
+    public Task<WowSearchResponse<ItemSearchResult>> SearchItemsAsync(
         string query,
         int page = 1,
         int pageSize = 100,
@@ -74,14 +75,16 @@ internal sealed class GameDataClient : IGameDataClient
         ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, MaxSearchPageSize);
 
+        var locale = requestOptions?.Locale ?? _options.Locale;
         var queryParameters = new Dictionary<string, string?>
         {
-            ["q"] = query,
-            ["page"] = page.ToString(CultureInfo.InvariantCulture),
-            ["page_size"] = pageSize.ToString(CultureInfo.InvariantCulture),
+            [$"name.{locale}"] = query,
+            ["orderby"] = "id",
+            ["_page"] = page.ToString(CultureInfo.InvariantCulture),
+            ["_pageSize"] = pageSize.ToString(CultureInfo.InvariantCulture),
         };
 
-        return _executor.GetAsync<WowSearchResponse<Item>>(
+        return _executor.GetAsync<WowSearchResponse<ItemSearchResult>>(
             "/data/wow/search/item",
             StaticNamespace,
             requestOptions,
@@ -89,13 +92,23 @@ internal sealed class GameDataClient : IGameDataClient
             cancellationToken);
     }
 
-    public async IAsyncEnumerable<WowSearchResult<Item>> SearchAllItemsAsync(
+    public IAsyncEnumerable<WowSearchResult<ItemSearchResult>> SearchAllItemsAsync(
         string query,
         WowRequestOptions? requestOptions = null,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
+        // Validate eagerly: this method is not an iterator, so argument errors surface at the call
+        // site instead of on first enumeration.
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
 
+        return SearchAllItemsIteratorAsync(query, requestOptions, cancellationToken);
+    }
+
+    private async IAsyncEnumerable<WowSearchResult<ItemSearchResult>> SearchAllItemsIteratorAsync(
+        string query,
+        WowRequestOptions? requestOptions,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         var page = 1;
         while (true)
         {
@@ -107,7 +120,7 @@ internal sealed class GameDataClient : IGameDataClient
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            if (response.Results is not null)
+            if (response.Results is { Count: > 0 })
             {
                 foreach (var result in response.Results)
                 {
@@ -115,7 +128,9 @@ internal sealed class GameDataClient : IGameDataClient
                 }
             }
 
-            if (response.MaxPage <= 0 || page >= response.MaxPage)
+            // Follow PageCount even when a page comes back empty; only stop once the reported page
+            // count is exhausted (or the API does not report one).
+            if (response.PageCount <= 0 || page >= response.PageCount)
             {
                 yield break;
             }

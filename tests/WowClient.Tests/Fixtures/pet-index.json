@@ -1,0 +1,11 @@
+{
+  "pets": [
+    {
+      "key": {
+        "href": "https://us.api.blizzard.com/data/wow/pet/39?namespace=static-us"
+      },
+      "name": "Mechanical Squirrel",
+      "id": 39
+    }
+  ]
+}

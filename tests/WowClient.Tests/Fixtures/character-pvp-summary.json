@@ -1,0 +1,26 @@
+{
+  "character": {
+    "name": "Fëa",
+    "id": 123,
+    "realm": {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    }
+  },
+  "honor_level": 5,
+  "pvp_brackets": [
+    {
+      "bracket": {
+        "type": "ARENA_2v2",
+        "name": "2v2 Arena"
+      },
+      "rating": 1500,
+      "season": 1,
+      "tier": {
+        "type": "CHALLENGER",
+        "name": "Challenger"
+      }
+    }
+  ]
+}

@@ -10,7 +10,9 @@
     <Authors>WowClient contributors</Authors>
     <Description>An asynchronous .NET client for the Blizzard World of Warcraft Game Data and Profile APIs.</Description>
     <PackageTags>wow;world-of-warcraft;blizzard;battlenet;api;client</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/niccgag/WowClient</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 

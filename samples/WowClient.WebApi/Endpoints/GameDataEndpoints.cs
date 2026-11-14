@@ -84,12 +84,12 @@ public static class GameDataEndpoints
 
         var currentPage = page ?? 1;
         var currentPageSize = pageSize ?? 50;
-        if (currentPage < 1 || currentPageSize is < 1 or > 1000)
+        if (currentPage < 1 || currentPageSize is < 1 or > 100)
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Invalid search request",
-                detail: "'page' must be at least 1 and 'pageSize' must be between 1 and 1000.");
+                detail: "'page' must be at least 1 and 'pageSize' must be between 1 and 100.");
         }
 
         var response = await wow.GameData.SearchItemsAsync(

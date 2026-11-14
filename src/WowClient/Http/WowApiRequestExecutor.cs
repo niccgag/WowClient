@@ -13,15 +13,18 @@ internal sealed class WowApiRequestExecutor
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IAccessTokenProvider _accessTokenProvider;
     private readonly WowClientOptions _options;
+    private readonly TimeProvider _timeProvider;
 
     public WowApiRequestExecutor(
         IHttpClientFactory httpClientFactory,
         IAccessTokenProvider accessTokenProvider,
-        WowClientOptions options)
+        WowClientOptions options,
+        TimeProvider timeProvider)
     {
         _httpClientFactory = httpClientFactory;
         _accessTokenProvider = accessTokenProvider;
         _options = options;
+        _timeProvider = timeProvider;
     }
 
     public async Task<T> GetAsync<T>(
@@ -31,23 +34,53 @@ internal sealed class WowApiRequestExecutor
         IReadOnlyDictionary<string, string?>? queryParameters,
         CancellationToken cancellationToken)
     {
-        var uri = BuildUri(relativePath, defaultNamespace, requestOptions, queryParameters);
-
-        using var response = await SendAsync(uri, cancellationToken).ConfigureAwait(false);
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-
+        // Resolve the metadata before the network call so an unregistered type fails without
+        // spending a request.
         var typeInfo = WowJsonSerializerContext.Default.GetTypeInfo(typeof(T)) as JsonTypeInfo<T>
             ?? throw new NotSupportedException(
                 $"Type '{typeof(T)}' is not registered in {nameof(WowJsonSerializerContext)}.");
 
-        var result = await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken).ConfigureAwait(false);
-        return result ?? throw new WowApiException(
-            response.StatusCode,
-            null,
-            null,
-            "The API returned an empty response body.",
-            uri,
-            null);
+        var uri = BuildUri(relativePath, defaultNamespace, requestOptions, queryParameters);
+        var deadline = DateTimeOffset.UtcNow + _options.Timeout;
+        using var timeout = CreateTimeoutTokenSource(cancellationToken);
+        var operationToken = timeout.Token;
+
+        try
+        {
+            using var response = await SendAsync(uri, operationToken, deadline).ConfigureAwait(false);
+            EnsureResponseHasBody(response, uri);
+            await using var stream = await response.Content
+                .ReadAsStreamAsync(operationToken)
+                .ConfigureAwait(false);
+
+            T? result;
+            try
+            {
+                result = await JsonSerializer
+                    .DeserializeAsync(stream, typeInfo, operationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (JsonException exception)
+            {
+                throw new WowApiException(
+                    response.StatusCode,
+                    null,
+                    null,
+                    "The API returned malformed JSON.",
+                    uri,
+                    null,
+                    retryAfter: null,
+                    innerException: exception);
+            }
+
+            return result ?? throw new WowProtocolException(
+                "The API returned an empty response body.",
+                uri);
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw CreateTimeoutException(exception);
+        }
     }
 
     public async Task<JsonDocument> GetRawAsync(
@@ -58,13 +91,68 @@ internal sealed class WowApiRequestExecutor
         CancellationToken cancellationToken)
     {
         var uri = BuildUri(relativePath, defaultNamespace, requestOptions, queryParameters);
+        var deadline = DateTimeOffset.UtcNow + _options.Timeout;
+        using var timeout = CreateTimeoutTokenSource(cancellationToken);
+        var operationToken = timeout.Token;
 
-        using var response = await SendAsync(uri, cancellationToken).ConfigureAwait(false);
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var response = await SendAsync(uri, operationToken, deadline).ConfigureAwait(false);
+            EnsureResponseHasBody(response, uri);
+            await using var stream = await response.Content
+                .ReadAsStreamAsync(operationToken)
+                .ConfigureAwait(false);
+
+            try
+            {
+                return await JsonDocument
+                    .ParseAsync(stream, cancellationToken: operationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (JsonException exception)
+            {
+                throw new WowApiException(
+                    response.StatusCode,
+                    null,
+                    null,
+                    "The API returned malformed JSON.",
+                    uri,
+                    null,
+                    retryAfter: null,
+                    innerException: exception);
+            }
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw CreateTimeoutException(exception);
+        }
     }
 
-    private async Task<HttpResponseMessage> SendAsync(Uri uri, CancellationToken cancellationToken)
+    private CancellationTokenSource CreateTimeoutTokenSource(CancellationToken cancellationToken)
+    {
+        var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_options.Timeout);
+        return timeout;
+    }
+
+    private static void EnsureResponseHasBody(HttpResponseMessage response, Uri uri)
+    {
+        if (response.StatusCode == HttpStatusCode.NoContent ||
+            response.Content.Headers.ContentLength == 0)
+        {
+            throw new WowProtocolException("The API returned an empty response body.", uri);
+        }
+    }
+
+    private TaskCanceledException CreateTimeoutException(OperationCanceledException innerException) =>
+        new(
+            $"The Blizzard API request timed out after {_options.Timeout}.",
+            innerException);
+
+    private async Task<HttpResponseMessage> SendAsync(
+        Uri uri,
+        CancellationToken cancellationToken,
+        DateTimeOffset deadline)
     {
         var authRetried = false;
         var rateLimitRetries = 0;
@@ -86,7 +174,7 @@ internal sealed class WowApiRequestExecutor
             {
                 authRetried = true;
                 response.Dispose();
-                _accessTokenProvider.InvalidateToken();
+                _accessTokenProvider.InvalidateToken(token);
                 continue;
             }
 
@@ -94,7 +182,12 @@ internal sealed class WowApiRequestExecutor
                 rateLimitRetries < _options.MaxRateLimitRetries)
             {
                 var delay = GetRetryDelay(response, _options.MaxRateLimitDelay);
-                if (delay is not null)
+
+                // Only wait when the delay fits inside the remaining operation timeout, measured on
+                // the wall clock because CancellationTokenSource.CancelAfter arms the timeout with
+                // the system clock rather than the injected TimeProvider. Waiting anyway would
+                // cancel the delay and surface the 429 as a misleading timeout.
+                if (delay is not null && delay.Value <= deadline - DateTimeOffset.UtcNow)
                 {
                     rateLimitRetries++;
                     response.Dispose();
@@ -109,37 +202,43 @@ internal sealed class WowApiRequestExecutor
 
             if (!response.IsSuccessStatusCode)
             {
-                var exception = await CreateApiExceptionAsync(response, uri, cancellationToken).ConfigureAwait(false);
-                response.Dispose();
-                throw exception;
+                try
+                {
+                    throw await CreateApiExceptionAsync(response, uri, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    response.Dispose();
+                }
             }
 
             return response;
         }
     }
 
-    private static TimeSpan? GetRetryDelay(HttpResponseMessage response, TimeSpan maxDelay)
+    private TimeSpan? GetRetryDelay(HttpResponseMessage response, TimeSpan maxDelay)
+    {
+        var delay = GetRetryAfter(response);
+        return delay <= maxDelay ? delay : null;
+    }
+
+    private TimeSpan? GetRetryAfter(HttpResponseMessage response)
     {
         if (response.Headers.RetryAfter is not { } retryAfter)
         {
             return null;
         }
 
-        var delay = retryAfter.Delta ?? (retryAfter.Date - DateTimeOffset.UtcNow);
+        var delay = retryAfter.Delta ?? (retryAfter.Date - _timeProvider.GetUtcNow());
         if (delay is not { } value)
         {
             return null;
         }
 
-        if (value < TimeSpan.Zero)
-        {
-            value = TimeSpan.Zero;
-        }
-
-        return value <= maxDelay ? value : null;
+        return value < TimeSpan.Zero ? TimeSpan.Zero : value;
     }
 
-    private static async Task<WowApiException> CreateApiExceptionAsync(
+    private async Task<WowApiException> CreateApiExceptionAsync(
         HttpResponseMessage response,
         Uri uri,
         CancellationToken cancellationToken)
@@ -165,7 +264,8 @@ internal sealed class WowApiRequestExecutor
             error?.Type,
             error?.Detail,
             uri,
-            body);
+            body,
+            GetRetryAfter(response));
     }
 
     private Uri BuildUri(
@@ -183,29 +283,60 @@ internal sealed class WowApiRequestExecutor
         var baseUri = _options.ResolveApiBaseUri();
         var absolute = new Uri(baseUri.AbsoluteUri.TrimEnd('/') + path, UriKind.Absolute);
 
-        var query = new List<string>(4)
+        // Start with any query string embedded in the path. UriBuilder.Query would otherwise
+        // replace it when the generated parameters are assigned.
+        var query = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var existingQuery = absolute.Query;
+        if (existingQuery.StartsWith('?'))
         {
-            $"namespace={Uri.EscapeDataString(requestOptions?.Namespace ?? defaultNamespace)}",
-            $"locale={Uri.EscapeDataString(requestOptions?.Locale ?? _options.Locale)}",
-        };
+            existingQuery = existingQuery[1..];
+        }
 
+        foreach (var part in existingQuery.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = part.IndexOf('=');
+            var key = separator < 0 ? part : part[..separator];
+            var value = separator < 0 ? string.Empty : part[(separator + 1)..];
+            query[Uri.UnescapeDataString(key)] = Uri.UnescapeDataString(value);
+        }
+
+        // Precedence: explicit WowRequestOptions beat caller-supplied queryParameters, which beat
+        // values embedded in the path; generated defaults fill whatever is still missing.
         if (queryParameters is not null)
         {
             foreach (var parameter in queryParameters)
             {
-                if (parameter.Value is null)
+                if (parameter.Value is not null)
                 {
-                    continue;
+                    query[parameter.Key] = parameter.Value;
                 }
-
-                query.Add(
-                    $"{Uri.EscapeDataString(parameter.Key)}={Uri.EscapeDataString(parameter.Value)}");
             }
+        }
+
+        if (requestOptions?.Namespace is not null)
+        {
+            query["namespace"] = requestOptions.Namespace;
+        }
+        else if (!query.ContainsKey("namespace"))
+        {
+            query["namespace"] = defaultNamespace;
+        }
+
+        if (requestOptions?.Locale is not null)
+        {
+            query["locale"] = requestOptions.Locale;
+        }
+        else if (!query.ContainsKey("locale"))
+        {
+            query["locale"] = _options.Locale;
         }
 
         var builder = new UriBuilder(absolute)
         {
-            Query = string.Join("&", query),
+            Query = string.Join(
+                "&",
+                query.Select(parameter =>
+                    $"{Uri.EscapeDataString(parameter.Key)}={Uri.EscapeDataString(parameter.Value ?? string.Empty)}")),
         };
 
         return builder.Uri;

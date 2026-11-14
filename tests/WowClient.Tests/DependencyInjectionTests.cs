@@ -76,6 +76,86 @@ public sealed class DependencyInjectionTests
             () => provider.GetRequiredService<IOptions<WowClientOptions>>().Value);
     }
 
+    [Fact]
+    public void RelativeApiBaseUrlFailsOptionsValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddWowClient(options => options.ApiBaseUrl = new Uri("relative", UriKind.Relative));
+
+        using var provider = services.BuildServiceProvider();
+
+        var exception = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<WowClientOptions>>().Value);
+
+        Assert.Contains("ApiBaseUrl", exception.Message);
+    }
+
+    [Fact]
+    public void NegativeRateLimitSettingsFailOptionsValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddWowClient(options =>
+        {
+            options.MaxRateLimitRetries = -1;
+            options.MaxRateLimitDelay = TimeSpan.FromSeconds(-1);
+        });
+
+        using var provider = services.BuildServiceProvider();
+
+        var exception = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<WowClientOptions>>().Value);
+
+        Assert.Contains("MaxRateLimitRetries", exception.Message);
+    }
+
+    [Fact]
+    public void UnsupportedRegionFailsOptionsValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddWowClient(options => options.Region = (WowRegion)99);
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<WowClientOptions>>().Value);
+    }
+
+    [Fact]
+    public void OversizedTimeoutFailsOptionsValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddWowClient(options => options.Timeout = TimeSpan.MaxValue);
+
+        using var provider = services.BuildServiceProvider();
+
+        var exception = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<WowClientOptions>>().Value);
+
+        Assert.Contains("Timeout", exception.Message);
+    }
+
+    [Fact]
+    public void InsecureHttpBaseUrlFailsOptionsValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddWowClient(options => options.OAuthBaseUrl = new Uri("http://oauth.test"));
+
+        using var provider = services.BuildServiceProvider();
+
+        var exception = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<WowClientOptions>>().Value);
+
+        Assert.Contains("OAuthBaseUrl", exception.Message);
+    }
+
+    [Fact]
+    public void DefaultUserAgentUsesAssemblyVersion()
+    {
+        var options = new WowClientOptions();
+
+        Assert.Matches(@"^WowClient/\d+\.\d+\.\d+", options.UserAgent);
+    }
+
     private sealed class StubTokenProvider : IAccessTokenProvider
     {
         public ValueTask<string> GetAccessTokenAsync(CancellationToken cancellationToken = default) =>

@@ -1,0 +1,31 @@
+{
+  "guild": {
+    "id": 42,
+    "name": "Example Guild",
+    "realm": {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    }
+  },
+  "activities": [
+    {
+      "character_achievement": {
+        "character": {
+          "name": "Fëa",
+          "id": 123,
+          "realm": {
+            "id": 1096,
+            "slug": "tarren-mill",
+            "name": "Tarren Mill"
+          }
+        },
+        "achievement": {
+          "id": 6,
+          "name": "Level 10"
+        }
+      },
+      "timestamp": 1700000000000
+    }
+  ]
+}

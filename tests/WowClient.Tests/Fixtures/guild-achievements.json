@@ -1,0 +1,23 @@
+{
+  "guild": {
+    "id": 42,
+    "name": "Example Guild",
+    "realm": {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    }
+  },
+  "total_quantity": 1,
+  "total_points": 10,
+  "achievements": [
+    {
+      "id": 6,
+      "achievement": {
+        "id": 6,
+        "name": "Level 10"
+      },
+      "completed_timestamp": 1700000000000
+    }
+  ]
+}

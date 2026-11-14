@@ -40,6 +40,15 @@ internal sealed class ClientCredentialsTokenProvider : IAccessTokenProvider
 
     public void InvalidateToken() => Volatile.Write(ref _current, null);
 
+    public void InvalidateToken(string token)
+    {
+        var current = Volatile.Read(ref _current);
+        if (current is not null && string.Equals(current.Value, token, StringComparison.Ordinal))
+        {
+            Interlocked.CompareExchange(ref _current, null, current);
+        }
+    }
+
     private async Task<string> RefreshAsync(CancellationToken cancellationToken)
     {
         await _refreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -69,54 +78,82 @@ internal sealed class ClientCredentialsTokenProvider : IAccessTokenProvider
 
     private async Task<AccessToken> RequestTokenAsync(CancellationToken cancellationToken)
     {
-        var client = _httpClientFactory.CreateClient(WowClientDefaults.OAuthHttpClientName);
-        var tokenEndpoint = new Uri(
-            _options.ResolveOAuthBaseUri().AbsoluteUri.TrimEnd('/') + "/token",
-            UriKind.Absolute);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_options.Timeout);
+        var operationToken = timeout.Token;
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint);
-        var basic = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_options.ClientId}:{_options.ClientSecret}"));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", basic);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.TryAddWithoutValidation("User-Agent", _options.UserAgent);
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        try
         {
-            ["grant_type"] = "client_credentials",
-        });
+            var client = _httpClientFactory.CreateClient(WowClientDefaults.OAuthHttpClientName);
+            var tokenEndpoint = new Uri(
+                _options.ResolveOAuthBaseUri().AbsoluteUri.TrimEnd('/') + "/token",
+                UriKind.Absolute);
 
-        using var response = await client
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
+            using var request = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint);
+            var basic = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_options.ClientId}:{_options.ClientSecret}"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", basic);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.TryAddWithoutValidation("User-Agent", _options.UserAgent);
+            request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "client_credentials",
+            });
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            var (error, description) = ParseOAuthError(body);
-            var reason = string.IsNullOrWhiteSpace(response.ReasonPhrase)
-                ? response.StatusCode.ToString()
-                : response.ReasonPhrase;
-            throw new WowAuthenticationException(
-                $"Blizzard OAuth token request failed with status {(int)response.StatusCode} ({reason}).",
-                response.StatusCode,
-                error,
-                description);
+            using var response = await client
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, operationToken)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content
+                    .ReadAsStringAsync(operationToken)
+                    .ConfigureAwait(false);
+                var (error, description) = ParseOAuthError(body);
+                var reason = string.IsNullOrWhiteSpace(response.ReasonPhrase)
+                    ? response.StatusCode.ToString()
+                    : response.ReasonPhrase;
+                throw new WowAuthenticationException(
+                    $"Blizzard OAuth token request failed with status {(int)response.StatusCode} ({reason}).",
+                    response.StatusCode,
+                    error,
+                    description);
+            }
+
+            await using var stream = await response.Content
+                .ReadAsStreamAsync(operationToken)
+                .ConfigureAwait(false);
+
+            TokenResponse? token;
+            try
+            {
+                token = await JsonSerializer
+                    .DeserializeAsync(stream, WowJsonSerializerContext.Default.TokenResponse, operationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (JsonException exception)
+            {
+                throw new WowAuthenticationException(
+                    "Blizzard OAuth token response contained malformed JSON.",
+                    innerException: exception);
+            }
+
+            if (token is null || string.IsNullOrWhiteSpace(token.AccessToken))
+            {
+                throw new WowAuthenticationException("Blizzard OAuth token response did not contain an access token.");
+            }
+
+            var lifetime = TimeSpan.FromSeconds(Math.Max(1, token.ExpiresIn));
+            var skew = TimeSpan.FromSeconds(
+                Math.Min(WowClientDefaults.TokenRefreshSkew.TotalSeconds, lifetime.TotalSeconds / 2d));
+
+            return new AccessToken(token.AccessToken, _timeProvider.GetUtcNow() + lifetime - skew);
         }
-
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        var token = await JsonSerializer
-            .DeserializeAsync(stream, WowJsonSerializerContext.Default.TokenResponse, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (token is null || string.IsNullOrWhiteSpace(token.AccessToken))
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new WowAuthenticationException("Blizzard OAuth token response did not contain an access token.");
+            throw new TaskCanceledException(
+                $"The Blizzard OAuth request timed out after {_options.Timeout}.",
+                exception);
         }
-
-        var lifetime = TimeSpan.FromSeconds(Math.Max(1, token.ExpiresIn));
-        var skew = TimeSpan.FromSeconds(
-            Math.Min(WowClientDefaults.TokenRefreshSkew.TotalSeconds, lifetime.TotalSeconds / 2d));
-
-        return new AccessToken(token.AccessToken, _timeProvider.GetUtcNow() + lifetime - skew);
     }
 
     private static (string? Error, string? Description) ParseOAuthError(string body)

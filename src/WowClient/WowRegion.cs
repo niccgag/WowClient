@@ -16,9 +16,6 @@ public enum WowRegion
 
     /// <summary>Taiwan.</summary>
     Tw,
-
-    /// <summary>China.</summary>
-    Cn,
 }
 
 /// <summary>
@@ -35,8 +32,7 @@ public static class WowRegionExtensions
         WowRegion.Eu => "eu",
         WowRegion.Kr => "kr",
         WowRegion.Tw => "tw",
-        WowRegion.Cn => "cn",
-        _ => throw new ArgumentOutOfRangeException(nameof(region), region, "Unknown region."),
+        _ => throw new ArgumentOutOfRangeException(nameof(region), region, "Unknown or unsupported region."),
     };
 
     /// <summary>

@@ -24,7 +24,7 @@ namespace WowClient.Json;
 [JsonSerializable(typeof(ItemClassIndex))]
 [JsonSerializable(typeof(ItemClass))]
 [JsonSerializable(typeof(ItemSubclass))]
-[JsonSerializable(typeof(WowSearchResponse<Item>))]
+[JsonSerializable(typeof(WowSearchResponse<ItemSearchResult>))]
 [JsonSerializable(typeof(WowMedia))]
 [JsonSerializable(typeof(CharacterProfile))]
 [JsonSerializable(typeof(CharacterStatus))]

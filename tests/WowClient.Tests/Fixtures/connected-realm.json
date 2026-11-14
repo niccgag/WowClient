@@ -1,0 +1,19 @@
+{
+  "id": 1,
+  "has_queue": false,
+  "status": {
+    "type": "UP",
+    "name": "Up"
+  },
+  "population": {
+    "type": "HIGH",
+    "name": "High"
+  },
+  "realms": [
+    {
+      "id": 1096,
+      "slug": "tarren-mill",
+      "name": "Tarren Mill"
+    }
+  ]
+}

@@ -16,9 +16,12 @@ public interface IWowClient
 
     /// <summary>
     /// Sends a raw GET request to any path on the configured API host and returns the JSON document.
+    /// The namespace is inferred from the path unless <see cref="WowRequestOptions.Namespace"/> is set.
     /// The caller owns the returned <see cref="JsonDocument"/> and must dispose it.
     /// </summary>
-    /// <param name="relativePath">API path, for example <c>/data/wow/item/19019</c>.</param>
+    /// <param name="relativePath">
+    /// API path, for example <c>/data/wow/item/19019</c>. Query strings embedded in the path are preserved.
+    /// </param>
     /// <param name="requestOptions">Optional namespace and locale overrides.</param>
     /// <param name="queryParameters">Additional query parameters.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

@@ -1,6 +1,7 @@
 using System.Net;
 using WowClient.Auth;
 using WowClient.Exceptions;
+using WowClient.Http;
 using WowClient.Tests.Helpers;
 
 namespace WowClient.Tests;
@@ -134,5 +135,42 @@ public sealed class AuthTests
 
         Assert.Equal(1, handler.TokenRequestCount);
         Assert.Equal(11, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task InvalidatingAStaleTokenDoesNotClearTheCurrentToken()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueToken();
+        handler.EnqueueToken();
+        using var httpClient = new HttpClient(handler);
+        var provider = new ClientCredentialsTokenProvider(
+            new SingleHttpClientFactory(httpClient),
+            TestClient.Options(),
+            TimeProvider.System);
+
+        var token = await provider.GetAccessTokenAsync();
+        provider.InvalidateToken("a-different-token");
+
+        Assert.Equal(token, await provider.GetAccessTokenAsync());
+        Assert.Equal(1, handler.TokenRequestCount);
+
+        provider.InvalidateToken(token);
+        Assert.Equal(token, await provider.GetAccessTokenAsync());
+        Assert.Equal(2, handler.TokenRequestCount);
+    }
+
+    [Fact]
+    public async Task MalformedTokenSuccessBodyThrowsAuthenticationException()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJson("{not json");
+        var client = TestClient.Create(handler);
+
+        var exception = await Assert.ThrowsAsync<WowAuthenticationException>(
+            () => client.GameData.GetItemAsync(1));
+
+        Assert.IsAssignableFrom<System.Text.Json.JsonException>(exception.InnerException);
+        Assert.Equal(0, handler.Requests.Count(request => request.Uri.AbsolutePath != "/token"));
     }
 }

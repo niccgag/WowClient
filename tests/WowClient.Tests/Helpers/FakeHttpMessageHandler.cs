@@ -21,6 +21,14 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
 
     public int TokenRequestCount => Requests.Count(request => request.Uri.AbsolutePath == "/token");
 
+    public bool IsDisposed { get; private set; }
+
+    protected override void Dispose(bool disposing)
+    {
+        IsDisposed = true;
+        base.Dispose(disposing);
+    }
+
     public void Enqueue(Func<HttpRequestMessage, HttpResponseMessage> responder) =>
         _responses.Enqueue(responder);
 

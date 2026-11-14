@@ -1,3 +1,5 @@
+using System.Text.Json;
+using WowClient.Models;
 using WowClient.Models.GameData;
 using WowClient.Models.Profile;
 
@@ -37,16 +39,37 @@ public sealed record ItemResponse(
         item.Level,
         item.RequiredLevel,
         item.IsEquippable);
+
+    public static ItemResponse From(ItemSearchResult item) => new(
+        item.Id,
+        Localized(item.Name),
+        Localized(item.Quality?.Name),
+        Localized(item.ItemClass?.Name),
+        Localized(item.ItemSubclass?.Name),
+        Localized(item.InventoryType?.Name),
+        item.Level,
+        item.RequiredLevel,
+        item.IsEquippable);
+
+    // Prefer English (the sample's effective locale) but fall back to the first locale the API
+    // returned so a locale-specific response does not render blank fields.
+    private static string? Localized(WowLocalizedName? name) =>
+        name?.EnglishUs
+        ?? name?.Values?.Values
+            .Where(value => value.ValueKind == JsonValueKind.String)
+            .Select(value => value.GetString())
+            .FirstOrDefault(value => !string.IsNullOrEmpty(value));
 }
 
 public sealed record ItemSearchResponse(
     int Page,
     int PageSize,
-    int MaxPage,
-    int TotalCount,
+    int MaxPageSize,
+    int PageCount,
+    bool ResultCountCapped,
     IReadOnlyList<ItemResponse> Results)
 {
-    public static ItemSearchResponse From(WowSearchResponse<Item> response)
+    public static ItemSearchResponse From(WowSearchResponse<ItemSearchResult> response)
     {
         var results = response.Results?
             .Where(result => result.Data is not null)
@@ -56,8 +79,9 @@ public sealed record ItemSearchResponse(
         return new ItemSearchResponse(
             response.Page,
             response.PageSize,
-            response.MaxPage,
-            response.TotalCount,
+            response.MaxPageSize,
+            response.PageCount,
+            response.ResultCountCapped,
             results);
     }
 }

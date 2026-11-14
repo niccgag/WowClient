@@ -16,12 +16,11 @@ public static class WowLocale
     public const string RussianRu = "ru_RU";
     public const string KoreanKr = "ko_KR";
     public const string ChineseTw = "zh_TW";
-    public const string ChineseCn = "zh_CN";
 
     /// <summary>
     /// Gets every locale known to the client.
     /// </summary>
-    public static IReadOnlyList<string> All { get; } = new[]
+    public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[]
     {
         EnglishUs,
         EnglishGb,
@@ -34,6 +33,5 @@ public static class WowLocale
         RussianRu,
         KoreanKr,
         ChineseTw,
-        ChineseCn,
-    };
+    });
 }

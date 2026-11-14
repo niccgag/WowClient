@@ -122,24 +122,47 @@ public sealed class RequestBuildingTests
 
         var request = handler.ApiRequest();
         Assert.Equal("/data/wow/search/item", request.Uri.AbsolutePath);
-        Assert.Equal("thunderfury", request.Uri.QueryValue("q"));
-        Assert.Equal("2", request.Uri.QueryValue("page"));
-        Assert.Equal("50", request.Uri.QueryValue("page_size"));
+        Assert.Equal("thunderfury", request.Uri.QueryValue("name.en_US"));
+        Assert.Equal("id", request.Uri.QueryValue("orderby"));
+        Assert.Equal("2", request.Uri.QueryValue("_page"));
+        Assert.Equal("50", request.Uri.QueryValue("_pageSize"));
         Assert.Equal("static-us", request.Uri.QueryValue("namespace"));
+        Assert.Null(request.Uri.QueryValue("q"));
+        Assert.Null(request.Uri.QueryValue("page"));
+        Assert.Null(request.Uri.QueryValue("page_size"));
 
         var result = Assert.Single(response.Results!);
         Assert.Equal(19019, result.Data!.Id);
+        Assert.Equal("Thunderfury, Blessed Blade of the Windseeker", result.Data.Name!.EnglishUs);
     }
 
     [Fact]
-    public async Task SearchAllFollowsPagesUntilMaxPage()
+    public async Task SearchUsesRequestLocaleInTheFieldName()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueToken();
+        handler.EnqueueJson(Fixtures.Load("item-search.json"));
+        var client = TestClient.Create(handler);
+
+        await client.GameData.SearchItemsAsync(
+            "Donnerzorn",
+            requestOptions: new WowRequestOptions { Locale = WowLocale.GermanDe });
+
+        var request = handler.ApiRequest();
+        Assert.Equal("Donnerzorn", request.Uri.QueryValue("name.de_DE"));
+        Assert.Null(request.Uri.QueryValue("name.en_US"));
+        Assert.Equal("de_DE", request.Uri.QueryValue("locale"));
+    }
+
+    [Fact]
+    public async Task SearchAllFollowsPagesUntilPageCount()
     {
         var handler = new FakeHttpMessageHandler();
         handler.EnqueueToken();
         handler.EnqueueJson(
-            """{"page":1,"page_size":1000,"max_page":2,"total_count":2,"results":[{"key":{"href":"/1"},"data":{"id":1,"name":"One"}}]}""");
+            """{"page":1,"pageSize":100,"maxPageSize":100,"pageCount":2,"resultCountCapped":false,"results":[{"key":{"href":"/1"},"data":{"id":1,"name":{"en_US":"One"}}}]}""");
         handler.EnqueueJson(
-            """{"page":2,"page_size":1000,"max_page":2,"total_count":2,"results":[{"key":{"href":"/2"},"data":{"id":2,"name":"Two"}}]}""");
+            """{"page":2,"pageSize":100,"maxPageSize":100,"pageCount":2,"resultCountCapped":false,"results":[{"key":{"href":"/2"},"data":{"id":2,"name":{"en_US":"Two"}}}]}""");
         var client = TestClient.Create(handler);
 
         var ids = new List<int>();
@@ -150,6 +173,60 @@ public sealed class RequestBuildingTests
 
         Assert.Equal(new[] { 1, 2 }, ids);
         Assert.Equal(3, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task SearchAllContinuesPastAnEmptyPageWhenPageCountRemains()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueToken();
+        handler.EnqueueJson(
+            """{"page":1,"pageSize":100,"maxPageSize":100,"pageCount":2,"resultCountCapped":false,"results":[]}""");
+        handler.EnqueueJson(
+            """{"page":2,"pageSize":100,"maxPageSize":100,"pageCount":2,"resultCountCapped":false,"results":[{"key":{"href":"/2"},"data":{"id":2,"name":{"en_US":"Two"}}}]}""");
+        var client = TestClient.Create(handler);
+
+        var ids = new List<int>();
+        await foreach (var result in client.GameData.SearchAllItemsAsync("item"))
+        {
+            ids.Add(result.Data!.Id);
+        }
+
+        Assert.Equal(new[] { 2 }, ids);
+        Assert.Equal(3, handler.RequestCount);
+    }
+
+    [Fact]
+    public void SearchAllValidatesTheQueryBeforeEnumeration()
+    {
+        var handler = new FakeHttpMessageHandler();
+        var client = TestClient.Create(handler);
+
+        // The enumerable is returned eagerly; validation must not wait for first enumeration.
+        Assert.ThrowsAny<ArgumentException>(() => client.GameData.SearchAllItemsAsync(" "));
+
+        Assert.Equal(0, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task SearchAllPropagatesCancellation()
+    {
+        // No responses queued: a pre-cancelled token must abort before any HTTP request.
+        var handler = new FakeHttpMessageHandler();
+        var client = TestClient.Create(handler);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var results = client.GameData.SearchAllItemsAsync(
+            "item",
+            cancellationToken: cancellation.Token);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var _ in results)
+            {
+            }
+        });
     }
 
     [Fact]
@@ -177,7 +254,7 @@ public sealed class RequestBuildingTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => client.GameData.SearchItemsAsync("item", page: 0));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => client.GameData.SearchItemsAsync("item", pageSize: 1001));
+            () => client.GameData.SearchItemsAsync("item", pageSize: 101));
 
         Assert.Equal(0, handler.RequestCount);
     }
@@ -185,15 +262,17 @@ public sealed class RequestBuildingTests
     [Fact]
     public void SearchResponseModelExposesPagingMetadata()
     {
-        var response = new WowSearchResponse<Item>
+        var response = new WowSearchResponse<ItemSearchResult>
         {
             Page = 1,
             PageSize = 100,
-            MaxPage = 3,
-            TotalCount = 250,
+            MaxPageSize = 100,
+            PageCount = 3,
+            ResultCountCapped = true,
         };
 
-        Assert.Equal(3, response.MaxPage);
-        Assert.Equal(250, response.TotalCount);
+        Assert.Equal(3, response.PageCount);
+        Assert.Equal(100, response.MaxPageSize);
+        Assert.True(response.ResultCountCapped);
     }
 }

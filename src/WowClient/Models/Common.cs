@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using WowClient.Json;
 
 namespace WowClient.Models;
 
@@ -37,6 +38,40 @@ public sealed record WowName
 
     [JsonPropertyName("name")]
     public string? Name { get; init; }
+}
+
+/// <summary>
+/// A localized string keyed by locale, as returned by search endpoints. Use <see cref="Get"/> or
+/// <see cref="EnglishUs"/> to read a specific value. Accepts both the locale-map object and a plain
+/// string (treated as <c>en_US</c>) shapes.
+/// </summary>
+[JsonConverter(typeof(WowLocalizedNameConverter))]
+public sealed record WowLocalizedName
+{
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Values { get; set; }
+
+    /// <summary>Gets the localized value for <paramref name="locale"/> when present.</summary>
+    public string? Get(string locale)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(locale);
+
+        if (Values is not null &&
+            Values.TryGetValue(locale, out var value) &&
+            value.ValueKind == JsonValueKind.String)
+        {
+            return value.GetString();
+        }
+
+        return null;
+    }
+
+    /// <summary>Gets the value for <c>en_US</c> when present.</summary>
+    [JsonIgnore]
+    public string? EnglishUs => Get(WowLocale.EnglishUs);
+
+    /// <summary>Gets the value for <paramref name="locale"/> when present.</summary>
+    public string? this[string locale] => Get(locale);
 }
 
 /// <summary>An id/name pair.</summary>
