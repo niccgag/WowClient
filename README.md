@@ -108,6 +108,7 @@ Blizzard__ClientId=... Blizzard__ClientSecret=... dotnet run --project samples/W
 | GET | `/api/characters/{realm}/{name}` |
 | GET | `/api/characters/{realm}/{name}/equipment` |
 | GET | `/api/guilds/{realm}/{guild}/roster` |
+| GET | `/` |
 | GET | `/health` |
 
 ## Configuration
@@ -165,9 +166,10 @@ var item = await client.GameData.GetItemAsync(
 ### Item search
 
 `SearchItemsAsync` follows Blizzard's search contract: it sends `name.{locale}` (for example
-`name.en_US`), `orderby=id`, `_page`, and `_pageSize`. Page size is capped client-side at 100;
-`MaxPageSize` reports the largest page size the API accepted for that specific query, which can be
-lower. Responses expose `Page`, `PageSize`, `MaxPageSize`, `PageCount`, and `ResultCountCapped`, and
+`name.en_US`), `orderby=id`, `_page`, and `_pageSize`. Page size is limited client-side to 100;
+larger values throw `ArgumentOutOfRangeException` before a request is sent. `MaxPageSize` reports the
+largest page size the API accepted for that specific query, which can be lower. Responses expose
+`Page`, `PageSize`, `MaxPageSize`, `PageCount`, and `ResultCountCapped`, and
 `SearchAllItemsAsync` follows pages until `PageCount` is reached. Search result names are locale maps;
 use `WowLocalizedName.EnglishUs`, `Get(locale)`, or the indexer.
 
@@ -232,18 +234,20 @@ The caller owns and must dispose the returned `JsonDocument`.
 dotnet test
 ```
 
-Tests use a fake `HttpMessageHandler` and recorded JSON fixtures, so they need no credentials or network
-access. Coverage includes token caching/refresh, conditional token invalidation, whole-operation
-timeouts, raw request namespace inference and query merging, disposal ownership, URL and namespace
-construction, options validation, region handling, search paging, deserialization across the endpoint
-surface, rate limiting, authentication errors, and DI registration.
+The library tests use a fake `HttpMessageHandler` and recorded JSON fixtures, so they need no
+credentials or network access. Coverage includes token caching/refresh, conditional token
+invalidation, whole-operation timeouts, raw request namespace inference and query merging, disposal
+ownership, URL and namespace construction, options validation, region handling, search paging,
+deserialization across the endpoint surface, rate limiting, authentication errors, and DI
+registration. The sample test project covers response mapping and `ProblemDetails` translation.
 
 ## Project layout
 
 ```
-src/WowClient                 Library
-tests/WowClient.Tests         xUnit test suite
-samples/WowClient.WebApi      ASP.NET Core sample API
+src/WowClient                      Library
+tests/WowClient.Tests              xUnit test suite
+samples/WowClient.WebApi           ASP.NET Core sample API
+samples/WowClient.WebApi.Tests     Tests for the sample API
 ```
 
 ## Scope and limitations
