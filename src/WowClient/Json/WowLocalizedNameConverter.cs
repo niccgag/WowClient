@@ -31,7 +31,6 @@ internal sealed class WowLocalizedNameConverter : JsonConverter<WowLocalizedName
                 };
 
             case JsonTokenType.StartObject:
-            {
                 var values = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
                 while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
                 {
@@ -48,7 +47,7 @@ internal sealed class WowLocalizedNameConverter : JsonConverter<WowLocalizedName
                 }
 
                 return new WowLocalizedName { Values = values };
-            }
+
 
             default:
                 throw new JsonException(

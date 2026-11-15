@@ -1,8 +1,5 @@
 using WowClient;
 using WowClient.Extensions;
-using WowClient.WebApi.Contracts;
-using WowClient.WebApi.Endpoints;
-using WowClient.WebApi.Errors;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,43 +7,37 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddWowClient(options =>
     builder.Configuration.GetSection("Blizzard").Bind(options));
 
-// Fail fast with a clear message when credentials have not been configured.
-builder.Services.AddOptions<WowClientOptions>()
-    .Validate(
-        options => !string.IsNullOrWhiteSpace(options.ClientId),
-        "Blizzard:ClientId is required. Use user-secrets, environment variables (Blizzard__ClientId), or local configuration.")
-    .Validate(
-        options => !string.IsNullOrWhiteSpace(options.ClientSecret),
-        "Blizzard:ClientSecret is required. Use user-secrets, environment variables (Blizzard__ClientSecret), or local configuration.")
-    .ValidateOnStart();
-
-builder.Services.AddOpenApi();
-builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<WowApiExceptionHandler>();
-
 var app = builder.Build();
 
-app.UseExceptionHandler();
+var api = app.MapGroup("/api");
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
+api.MapGet("/realms", async (IWowClient wow, CancellationToken cancellationToken) =>
+    await wow.GameData.GetRealmIndexAsync(cancellationToken: cancellationToken));
 
-app.MapGet("/", () => TypedResults.Ok(new ServiceInfoResponse(
-        "WowClient sample API",
-        app.Environment.IsDevelopment() ? "/openapi/v1.json" : "OpenAPI is mapped in Development only.")))
-    .WithTags("Service")
-    .WithName("GetServiceInfo");
+api.MapGet("/realms/{slug}", async (string slug, IWowClient wow, CancellationToken cancellationToken) =>
+    await wow.GameData.GetRealmAsync(slug, cancellationToken: cancellationToken));
 
-app.MapGet("/health", () => TypedResults.Ok(new HealthResponse("ok")))
-    .WithTags("Service")
-    .WithName("GetHealth");
+api.MapGet("/items/{id:int}", async (int id, IWowClient wow, CancellationToken cancellationToken) =>
+    await wow.GameData.GetItemAsync(id, cancellationToken: cancellationToken));
 
-app.MapGameDataEndpoints();
-app.MapProfileEndpoints();
+api.MapGet("/items", async (string q, IWowClient wow, CancellationToken cancellationToken) =>
+    await wow.GameData.SearchItemsAsync(q, cancellationToken: cancellationToken));
+
+api.MapGet("/spells/{id:int}", async (int id, IWowClient wow, CancellationToken cancellationToken) =>
+    await wow.GameData.GetSpellAsync(id, cancellationToken: cancellationToken));
+
+api.MapGet("/characters/{realm}/{name}", async (
+        string realm,
+        string name,
+        IWowClient wow,
+        CancellationToken cancellationToken) =>
+    await wow.Profile.GetCharacterProfileAsync(realm, name, cancellationToken: cancellationToken));
+
+api.MapGet("/guilds/{realm}/{guild}/roster", async (
+        string realm,
+        string guild,
+        IWowClient wow,
+        CancellationToken cancellationToken) =>
+    await wow.Profile.GetGuildRosterAsync(realm, guild, cancellationToken: cancellationToken));
 
 app.Run();
-
-// Exposed for integration testing with WebApplicationFactory<Program>.
-public partial class Program;

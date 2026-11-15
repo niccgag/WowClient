@@ -73,15 +73,25 @@ remain responsible for disposing them.
 
 ## Sample web API
 
-[`samples/WowClient.WebApi`](https://github.com/niccgag/WowClient/tree/main/samples/WowClient.WebApi) is a minimal ASP.NET Core API showing how the client is
-typically consumed:
+[`samples/WowClient.WebApi`](https://github.com/niccgag/WowClient/tree/main/samples/WowClient.WebApi) is a deliberately small ASP.NET Core API. Everything lives in
+[`Program.cs`](https://github.com/niccgag/WowClient/blob/main/samples/WowClient.WebApi/Program.cs):
+options binding, `AddWowClient`, and a few minimal API endpoints that call `IWowClient` directly.
 
-- configuration-bound `WowClientOptions` from the `Blizzard` section, with fail-fast credential validation
-- dependency injection through `AddWowClient` (`IWowClient` is thread-safe and registered as a singleton)
-- trimmed response DTOs instead of exposing API models directly
-- `CancellationToken` propagation on every Blizzard call
-- `ProblemDetails` translation of Blizzard failures through an `IExceptionHandler`
-- OpenAPI document at `/openapi/v1.json` in Development
+```csharp
+builder.Services.AddWowClient(options =>
+    builder.Configuration.GetSection("Blizzard").Bind(options));
+
+var app = builder.Build();
+
+app.MapGet("/items/{id:int}", async (int id, IWowClient wow, CancellationToken cancellationToken) =>
+    await wow.GameData.GetItemAsync(id, cancellationToken: cancellationToken));
+
+app.Run();
+```
+
+The sample returns the library models directly to keep the focus on client usage. A production API
+would usually project them into its own response contracts. Every handler forwards
+`CancellationToken`, and `IWowClient` is thread-safe and registered as a singleton.
 
 Configure credentials with user-secrets (recommended for local development):
 
@@ -102,14 +112,10 @@ Blizzard__ClientId=... Blizzard__ClientSecret=... dotnet run --project samples/W
 | GET | `/api/realms` |
 | GET | `/api/realms/{slug}` |
 | GET | `/api/items/{id}` |
-| GET | `/api/items?q={query}&page=1&pageSize=50` |
+| GET | `/api/items?q={query}` |
 | GET | `/api/spells/{id}` |
-| GET | `/api/mounts` |
 | GET | `/api/characters/{realm}/{name}` |
-| GET | `/api/characters/{realm}/{name}/equipment` |
 | GET | `/api/guilds/{realm}/{guild}/roster` |
-| GET | `/` |
-| GET | `/health` |
 
 ## Configuration
 
@@ -239,7 +245,7 @@ credentials or network access. Coverage includes token caching/refresh, conditio
 invalidation, whole-operation timeouts, raw request namespace inference and query merging, disposal
 ownership, URL and namespace construction, options validation, region handling, search paging,
 deserialization across the endpoint surface, rate limiting, authentication errors, and DI
-registration. The sample test project covers response mapping and `ProblemDetails` translation.
+registration.
 
 ## Project layout
 
@@ -247,7 +253,6 @@ registration. The sample test project covers response mapping and `ProblemDetail
 src/WowClient                      Library
 tests/WowClient.Tests              xUnit test suite
 samples/WowClient.WebApi           ASP.NET Core sample API
-samples/WowClient.WebApi.Tests     Tests for the sample API
 ```
 
 ## Scope and limitations
